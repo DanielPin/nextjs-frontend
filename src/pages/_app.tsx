@@ -1,21 +1,46 @@
 import "../styles/globals.css";
-import type { AppProps } from "next/app";
+import type { AppContext, AppProps } from "next/app";
 import { ThemeProvider } from "@material-ui/styles";
 import theme from "../utils/theme";
 import { CssBaseline } from "@material-ui/core";
 import { useEffect } from "react";
+import { SSRKeycloakProvider, SSRCookies } from "@react-keycloak/ssr";
+import { KEYCLOAK_PUBLIC_CONFIG } from "../utils/auth";
+import { parseCookies } from "../utils/cookies";
+import TenantContext, { TenantProvider } from "../components/TenantProvider";
 
-function MyApp({ Component, pageProps }: AppProps) {
+function MyApp({ Component, pageProps, cookies }: AppProps & { cookies: any }) {
   useEffect(() => {
     const jssStyle = document.querySelector("#jss-server-side");
     jssStyle?.parentElement?.removeChild(jssStyle);
   }, []);
 
   return (
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
-      <Component {...pageProps} />
-    </ThemeProvider>
+    <SSRKeycloakProvider
+      keycloakConfig={KEYCLOAK_PUBLIC_CONFIG}
+      persistor={SSRCookies(cookies)}
+      initOptions={{
+        onload: "check-sso",
+        silentCheckSsoRedirectUri:
+          typeof window !== "undefined"
+            ? `${window.location.origin}/silent-check-sso.html`
+            : null,
+      }}
+    >
+      <TenantProvider>
+        <ThemeProvider theme={theme}>
+          <CssBaseline />
+          <Component {...pageProps} />
+        </ThemeProvider>
+      </TenantProvider>
+    </SSRKeycloakProvider>
   );
 }
+
+MyApp.getInitialProps = async (appContext: AppContext) => {
+  return {
+    cookies: parseCookies(appContext.ctx.req),
+  };
+};
+
 export default MyApp;
